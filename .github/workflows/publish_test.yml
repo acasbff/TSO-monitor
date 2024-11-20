@@ -32,32 +32,19 @@ jobs:
       - name: Set up Google Sheets credentials
         run: |
           echo '${{ secrets.GOOGLE_SHEETS_CREDENTIALS }}' > gs-creds.json
+          # Debug: Check file exists and first few lines (avoiding sensitive data)
+          ls -l gs-creds.json
+          head -n 1 gs-creds.json
+        shell: bash
+
+      - name: Setup R environment variables
+        run: |
+          echo "GOOGLE_SHEETS_AUTH_FILE=$GITHUB_WORKSPACE/gs-creds.json" >> $GITHUB_ENV
+          # Debug: Print environment variable
+          echo "Auth file location: $GOOGLE_SHEETS_AUTH_FILE"
         shell: bash
 
       - name: Run test script
         run: Rscript test.R
         env:
-          GOOGLE_SHEETS_AUTH_FILE: gs-creds.json
-
-      # Only proceed with Quarto deployment if test passes
-      - name: Setup Quarto
-        if: success()
-        uses: quarto-dev/quarto-actions/setup@v2
-
-      - name: Install additional R packages for dashboard
-        if: success()
-        uses: r-lib/actions/setup-r-dependencies@v2
-        with:
-          packages: |
-            any::reactable
-            any::gt
-            any::htmltools
-
-      - name: Render and Publish
-        if: success()
-        uses: quarto-dev/quarto-actions/publish@v2
-        with:
-          target: gh-pages
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GOOGLE_SHEETS_AUTH_FILE: gs-creds.json
+          GOOGLE_SHEETS_AUTH_FILE: ${{ env.GOOGLE_SHEETS_AUTH_FILE }}
