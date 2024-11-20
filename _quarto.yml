@@ -1,5 +1,12 @@
 project:
-  title: "Reactable_dashboard"
+  type: website
+  output-dir: docs
 
-editor: visual
-
+website:
+  title: "TSO Monitor"
+  
+format:
+  dashboard-html:
+    theme: cosmo
+    orientation: columns
+    embed-resources: true

@@ -1,9 +1,5 @@
 ---
 title: "TSO monitor"
-format: 
-  dashboard:
-    orientation: columns
-    theme: cosmo
 ---
 
 ```{r setup, include=FALSE}
