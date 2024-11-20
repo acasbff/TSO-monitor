@@ -47,3 +47,11 @@ po/*~
 
 # RStudio Connect folder
 rsconnect/
+
+.RData
+.Ruserdata
+.DS_Store
+/.quarto/
+/_site/
+index_files/
+*.html
