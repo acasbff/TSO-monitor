@@ -1,18 +1,21 @@
 name: Test Auth
 
 on:
-  workflow_dispatch:  # This allows manual triggering
+  workflow_dispatch:
 
 jobs:
   test-auth:
     runs-on: ubuntu-latest
     steps:
-      - name: Check Credentials
+      - name: Check Credentials Only
         run: |
           echo '${{ secrets.GOOGLE_SHEETS_CREDENTIALS }}' > gs-creds.json
           if [ -s gs-creds.json ]; then
             echo "Credentials file created and not empty"
             echo "File size: $(wc -c < gs-creds.json) bytes"
+            echo "First few characters (sanitized):"
+            head -c 20 gs-creds.json | sed 's/[a-zA-Z0-9]/x/g'
           else
             echo "Credentials file is empty"
           fi
+        shell: bash
