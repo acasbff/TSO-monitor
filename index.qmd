@@ -12,8 +12,8 @@ library(htmltools)
 library(reactable)
 
 sheet_url <- "https://docs.google.com/spreadsheets/d/1wUMj9zsxa-eFd8F_XLyCbE7ZMsENwgH1cNq_0tXUHO0/edit?gid=0#gid=0"
-tab1_data0 <- read_sheet(sheet_url, sheet = 'Governance', range = "A1:H33")
-tab2_data0 <- read_sheet(sheet_url, sheet = 'Politics', range = "A1:L33")
+tab1_data0 <- read_sheet(sheet_url, sheet = 'Governance', range = "A1:I33")
+tab2_data0 <- read_sheet(sheet_url, sheet = 'Politics', range = "A1:I33")
 
 tab1_data <- tab1_data0 %>%
   select(-`Ownership (detailed)`) %>% 
@@ -32,29 +32,62 @@ tab2_data <- tab2_data0 %>%
 ## Row 1
 ```{r}
 reactable(
- tab1_data,
- columns = list(
-   Country = colDef(
-     minWidth = 120,
-     sticky = "left",
-     style = list(fontWeight = "bold")
-   ),
-   "State ownership share" = colDef(
-     minWidth = 100,
-     format = colFormat(
-       percent = TRUE,
-       digits = 1
-     )
-   ),
-   row_id = colDef(show = FALSE)
- ),
- theme = reactableTheme(
-   borderColor = "#dfe2e5",
-   stripedColor = "#f6f8fa",
-   highlightColor = "#f0f5f9",
-   cellPadding = "8px 12px"
- ),
- pagination = FALSE
+  tab1_data,
+  columns = list(
+    Country = colDef(
+      minWidth = 60,
+      sticky = "left",
+      style = function(value, index) {
+        current_country <- tab1_data$Country[index]
+        if (index > 1) {
+          previous_country <- tab1_data$Country[index - 1]
+          if (current_country == previous_country) {
+            list(borderTop = "none", paddingTop = 0, paddingBottom = 0, color = "transparent")
+          } else {
+            list(fontWeight = "bold")
+          }
+        } else {
+          list(fontWeight = "bold")
+        }
+      },
+      cell = function(value, index) {
+        current_country <- tab1_data$Country[index]
+        if (index > 1) {
+          previous_country <- tab1_data$Country[index - 1]
+          if (current_country == previous_country) {
+            value <- ""
+          }
+        }
+        value
+      }
+    ),
+    TSO = colDef(minWidth = 40,
+      cell = function(value, index) {
+        url <- tab1_data$TSO_URL[index]
+        if (!is.na(url)) {
+          htmltools::tags$a(href = url, target = "_blank", value)
+        } else {
+          value
+        }
+      }
+    ),
+    "State ownership share" = colDef(
+      minWidth = 40,
+      format = colFormat(
+        percent = TRUE,
+        digits = 1
+      )
+    ),
+    TSO_URL = colDef(show = FALSE),
+    row_id = colDef(show = FALSE)
+  ),
+  theme = reactableTheme(
+    borderColor = "#dfe2e5",
+    stripedColor = "#f6f8fa",
+    highlightColor = "#f0f5f9",
+    cellPadding = "8px 12px"
+  ),
+  pagination = FALSE
 )
 ```
 
