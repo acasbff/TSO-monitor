@@ -34,16 +34,16 @@ jobs:
             any::tidyverse
             any::gt
             any::htmltools
-
+          
       - name: Configure Google Sheets Auth
         run: |
           echo "${{ secrets.GOOGLE_SHEETS_CREDENTIALS }}" > gs-creds.json
-          echo "GOOGLE_SHEETS_AUTH_FILE=gs-creds.json" >> $GITHUB_ENV
-            
+          echo "GOOGLE_SHEETS_AUTH_FILE=$GITHUB_WORKSPACE/gs-creds.json" >> $GITHUB_ENV
+          
       - name: Render and Publish
         uses: quarto-dev/quarto-actions/publish@v2
         with:
           target: gh-pages
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GOOGLE_SHEETS_AUTH_FILE: gs-creds.json
+          GOOGLE_SHEETS_AUTH_FILE: ${{ env.GOOGLE_SHEETS_AUTH_FILE }}

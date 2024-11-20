@@ -11,7 +11,14 @@ library(gt)
 library(htmltools)
 library(reactable)
 
-gs4_auth(path = Sys.getenv("GOOGLE_SHEETS_AUTH_FILE"))
+if (Sys.getenv("GITHUB_ACTIONS") == "true") {
+  options(gargle_quiet = TRUE)
+  gs4_deauth()  # First deauthorize
+  gs4_auth(path = Sys.getenv("GOOGLE_SHEETS_AUTH_FILE"), email = "tso-monitor-service@tso-monitor.iam.gserviceaccount.com")
+} else {
+  gs4_auth()  # For local development
+}
+
 sheet_url <- "https://docs.google.com/spreadsheets/d/1wUMj9zsxa-eFd8F_XLyCbE7ZMsENwgH1cNq_0tXUHO0/edit?gid=0#gid=0"
 tab1_data0 <- read_sheet(sheet_url, sheet = 'Governance', range = "A1:I33")
 tab2_data0 <- read_sheet(sheet_url, sheet = 'Politics', range = "A1:I33")
