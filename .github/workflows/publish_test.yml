@@ -1,0 +1,63 @@
+name: Test and Publish Dashboard
+
+on:
+  push:
+    branches: main
+  schedule:
+    - cron: '0 0 * * *'  # Daily at midnight
+  workflow_dispatch:
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+      
+    steps:
+      - uses: actions/checkout@v3
+      
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: '4.2.0'
+          
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          packages: |
+            any::googlesheets4
+            any::googledrive
+            any::tidyverse
+            
+      - name: Set up Google Sheets credentials
+        run: |
+          echo '${{ secrets.GOOGLE_SHEETS_CREDENTIALS }}' > gs-creds.json
+        shell: bash
+
+      - name: Run test script
+        run: Rscript test.R
+        env:
+          GOOGLE_SHEETS_AUTH_FILE: gs-creds.json
+
+      # Only proceed with Quarto deployment if test passes
+      - name: Setup Quarto
+        if: success()
+        uses: quarto-dev/quarto-actions/setup@v2
+
+      - name: Install additional R packages for dashboard
+        if: success()
+        uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          packages: |
+            any::reactable
+            any::gt
+            any::htmltools
+
+      - name: Render and Publish
+        if: success()
+        uses: quarto-dev/quarto-actions/publish@v2
+        with:
+          target: gh-pages
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GOOGLE_SHEETS_AUTH_FILE: gs-creds.json
