@@ -55,3 +55,4 @@ rsconnect/
 /_site/
 index_files/
 *.html
+*.Rproj

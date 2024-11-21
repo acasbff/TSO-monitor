@@ -11,17 +11,46 @@ library(gt)
 library(htmltools)
 library(reactable)
 
+
+# Authentication handling
 if (Sys.getenv("GITHUB_ACTIONS") == "true") {
+  # Running in GitHub Actions
   options(gargle_quiet = TRUE)
   gs4_deauth()  # First deauthorize
-  gs4_auth(path = Sys.getenv("GOOGLE_SHEETS_AUTH_FILE"), email = "tso-monitor-service@tso-monitor.iam.gserviceaccount.com")
+  
+  # Authenticate using service account
+  tryCatch({
+    gs4_auth(path = "gs-creds.json")
+    print("Successfully authenticated with Google Sheets!")
+  }, error = function(e) {
+    stop("Failed to authenticate with Google Sheets: ", e$message)
+  })
 } else {
-  gs4_auth()  # For local development
+  # Local development
+  gs4_auth()  # Will prompt for interactive authentication
 }
 
+# Sheet URL
 sheet_url <- "https://docs.google.com/spreadsheets/d/1wUMj9zsxa-eFd8F_XLyCbE7ZMsENwgH1cNq_0tXUHO0/edit?gid=0#gid=0"
-tab1_data0 <- read_sheet(sheet_url, sheet = 'Governance', range = "A1:I33")
-tab2_data0 <- read_sheet(sheet_url, sheet = 'Politics', range = "A1:I33")
+
+# Read data with error handling
+tryCatch({
+  # Read Governance sheet
+  tab1_data0 <- read_sheet(
+    sheet_url, 
+    sheet = 'Governance', 
+    range = "A1:I33"
+  )
+
+  # Read Politics sheet
+  tab2_data0 <- read_sheet(
+    sheet_url, 
+    sheet = 'Politics', 
+    range = "A1:M33"
+  )
+}, error = function(e) {
+  stop("Error reading Google Sheets: ", e$message)
+})
 
 tab1_data <- tab1_data0 %>%
   select(-`Ownership (detailed)`) %>% 
@@ -43,7 +72,7 @@ reactable(
   tab1_data,
   columns = list(
     Country = colDef(
-      minWidth = 60,
+      minWidth = 120,
       sticky = "left",
       style = function(value, index) {
         current_country <- tab1_data$Country[index]
@@ -69,7 +98,7 @@ reactable(
         value
       }
     ),
-    TSO = colDef(minWidth = 40,
+    TSO = colDef(
       cell = function(value, index) {
         url <- tab1_data$TSO_URL[index]
         if (!is.na(url)) {
@@ -80,11 +109,46 @@ reactable(
       }
     ),
     "State ownership share" = colDef(
-      minWidth = 40,
-      format = colFormat(
-        percent = TRUE,
-        digits = 1
-      )
+      minWidth = 200,
+      cell = function(value) {
+        width <- paste0(value * 100, "%")
+        value <- paste0(format(value * 100, nsmall = 1), "%")
+        div(
+          style = list(
+            display = "flex",
+            alignItems = "center"
+          ),
+          div(
+            style = list(
+              background = "#114B63",
+              width = width,
+              height = "20px",
+              position = "relative"
+            ),
+            div(
+              style = list(
+                position = "absolute",
+                right = "8px",
+                color = "white",
+                fontSize = "14px",
+                lineHeight = "20px"
+              ),
+              value
+            )
+          )
+        )
+      }
+    ),
+    "Legislative mandate - TSO" = colDef(
+      style = function(value) {
+        if (value == "Carbon Neutrality by 2050") {
+          list(background = "#67BF72")
+        } else if (value == "Carbon Neutrality by 2035") {
+          list(background = "#F79F0F")
+        } else if (value == "Not found") {
+          list(background = "#E64795")
+        }
+      }
     ),
     TSO_URL = colDef(show = FALSE),
     row_id = colDef(show = FALSE)
@@ -103,6 +167,7 @@ reactable(
 
 ## Row 1 
 ```{r}
+
 reactable(
   tab2_data,
   columns = list(
@@ -134,49 +199,77 @@ reactable(
       }
     ),
     "TSO" = colDef(
-      minWidth = 100,
-      sticky = "left"
+      cell = function(value, index) {
+        url <- tab2_data$TSO_URL[index]
+        if (!is.na(url)) {
+          htmltools::tags$a(href = url, target = "_blank", value)
+        } else {
+          value
+        }
+      }
     ),
     "Current share of renewables (%) 2022 Ember" = colDef(
-      minWidth = 150,
-      headerStyle = list(whiteSpace = "pre-wrap", lineHeight = "1.2")
+      minWidth = 200,
+      cell = function(value) {
+        if (is.na(value)) return(NA)
+        width <- paste0(value, "%")
+        value <- paste0(format(as.numeric(value), nsmall = 1), "%")
+        div(
+          style = list(
+            display = "flex",
+            alignItems = "center"
+          ),
+          div(
+            style = list(
+              background = "#114B63",
+              width = width,
+              height = "20px",
+              position = "relative"
+            ),
+            div(
+              style = list(
+                position = "absolute",
+                right = "8px",
+                color = "white",
+                fontSize = "14px",
+                lineHeight = "20px"
+              ),
+              value
+            )
+          )
+        )
+      }
     ),
     "Government aligned with 2035 benchmark" = colDef(
-      minWidth = 150,
-      headerStyle = list(whiteSpace = "pre-wrap", lineHeight = "1.2")
+      style = function(value) {
+        if (value == "Yes") {
+          list(background = "#67BF72")
+        } else if (value == "No") {
+          list(background = "#E64795")
+        }
+      }
     ),
     "Green Grids Initiative (GGI)" = colDef(
-      minWidth = 150,
-      headerStyle = list(whiteSpace = "pre-wrap", lineHeight = "1.2")
+      cell = function(value) {
+        if (value == "Yes") "✓" else "✗"
+      }
     ),
     "International Smart Grid Action Network (ISGAN)" = colDef(
-      minWidth = 150,
-      headerStyle = list(whiteSpace = "pre-wrap", lineHeight = "1.2")
+      cell = function(value) {
+        if (value == "Yes") "✓" else "✗"
+      }
     ),
     "Global Power System Transformation Consortium (G-PST)" = colDef(
-      minWidth = 150,
-      headerStyle = list(whiteSpace = "pre-wrap", lineHeight = "1.2")
+      cell = function(value) {
+        if (value == "Yes") "✓" else "✗"
+      }
     ),
     "Regulatory Energy Transition Accelerator (RETA)" = colDef(
-      minWidth = 150,
-      headerStyle = list(whiteSpace = "pre-wrap", lineHeight = "1.2")
+      cell = function(value) {
+        if (value == "Yes") "✓" else "✗"
+      }
     ),
-    "Breakthrough Agenda Power (P4 infrastructure, knowledge, capacity & skills)" = colDef(
-      minWidth = 150,
-      headerStyle = list(whiteSpace = "pre-wrap", lineHeight = "1.2")
-    ),
-    "Clean Energy Ministerial" = colDef(
-      minWidth = 150,
-      headerStyle = list(whiteSpace = "pre-wrap", lineHeight = "1.2")
-    ),
-    "ENTSO-E board member or head of Assembly" = colDef(
-      minWidth = 150,
-      headerStyle = list(whiteSpace = "pre-wrap", lineHeight = "1.2")
-    ),
-    "ENTSO-E committee chair" = colDef(
-      minWidth = 150,
-      headerStyle = list(whiteSpace = "pre-wrap", lineHeight = "1.2")
-    ),
+    "TSO_URL" = colDef(show = FALSE),
     "row_id" = colDef(show = FALSE)
   ),
   theme = reactableTheme(
@@ -185,7 +278,6 @@ reactable(
     highlightColor = "#f0f5f9",
     cellPadding = "8px 12px"
   ),
-  pagination = FALSE,
-  compact = TRUE
+  pagination = FALSE
 )
 ```
