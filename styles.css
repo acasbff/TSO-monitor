@@ -1,0 +1,16 @@
+/* styles.css */
+.quarto-dashboard main {
+    max-width: none !important;
+    width: 100% !important;
+    padding: 0 !important;
+}
+
+.dashboard-grid {
+    max-width: none !important;
+    width: 100% !important;
+}
+
+.card {
+    max-width: none !important;
+    width: 100% !important;
+}

@@ -10,3 +10,6 @@ format:
     theme: cosmo
     orientation: columns
     embed-resources: true
+    css: styles.css
+    page-layout: full     # Add this line
+    margin-width: 0px    # Add this line

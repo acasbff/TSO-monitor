@@ -209,7 +209,7 @@ reactable(
       }
     ),
     "Current share of renewables (%) 2022 Ember" = colDef(
-      minWidth = 200,
+      minWidth = 180,
       cell = function(value) {
         if (is.na(value)) return(NA)
         width <- paste0(value, "%")
@@ -240,7 +240,7 @@ reactable(
         )
       }
     ),
-    "Government aligned with 2035 benchmark" = colDef(
+    "Government aligned with 2035 benchmark" = colDef(minWidth = 180,
       style = function(value) {
         if (value == "Yes") {
           list(background = "#67BF72")
@@ -249,22 +249,22 @@ reactable(
         }
       }
     ),
-    "Green Grids Initiative (GGI)" = colDef(
+    "Green Grids Initiative (GGI)" = colDef(minWidth = 180,
       cell = function(value) {
         if (value == "Yes") "✓" else "✗"
       }
     ),
-    "International Smart Grid Action Network (ISGAN)" = colDef(
+    "International Smart Grid Action Network (ISGAN)" = colDef(minWidth = 180,
       cell = function(value) {
         if (value == "Yes") "✓" else "✗"
       }
     ),
-    "Global Power System Transformation Consortium (G-PST)" = colDef(
+    "Global Power System Transformation Consortium (G-PST)" = colDef(minWidth = 180,
       cell = function(value) {
         if (value == "Yes") "✓" else "✗"
       }
     ),
-    "Regulatory Energy Transition Accelerator (RETA)" = colDef(
+    "Regulatory Energy Transition Accelerator (RETA)" = colDef(minWidth = 180,
       cell = function(value) {
         if (value == "Yes") "✓" else "✗"
       }
