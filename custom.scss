@@ -1,0 +1,71 @@
+/*-- scss:defaults --*/
+
+// Colors
+$primary: #00A1E3;
+$link-color: #00A1E3;
+$navbar-light-hover-color: #00A1E3;
+$navbar-light-active-color: #00A1E3;
+
+// Typography
+$font-family-sans-serif: 'Open Sans', sans-serif;      // Default font for content
+$navbar-font-family: 'Montserrat', sans-serif;   
+
+// Spacing
+$spacer: 1rem;
+$navbar-padding-y: 1rem;
+$grid-gutter-width: 2rem;
+
+// Cards
+$card-border-width: 0;
+$card-border-radius: $border-radius;
+$card-cap-bg: #f8f9fa;
+
+// Background colors
+$body-bg: white;
+$nav-tabs-link-active-color: white;        // Active tab text color
+$nav-tabs-link-color: gray;                // Inactive tab text color
+$nav-tabs-link-hover-bg: lightorange;      // Hover background color
+
+// navbar/header section
+$navbar-bg: white;
+$navbar-border-width: 2px;
+$navbar-border-color: #00A1E3;
+$navbar-border-style: solid;
+$navbar-padding-y: 1rem;          // Vertical padding
+$navbar-padding-x: 1rem;          // Horizontal padding
+$navbar-border-radius: 0.5rem;    // Rounded corners
+
+/*-- scss:rules --*/
+.navbar {
+  font-family: $navbar-font-family;
+  border: $navbar-border-width $navbar-border-style $navbar-border-color;
+  margin: 1rem;
+  padding: $navbar-padding-y $navbar-padding-x;
+  border-radius: $navbar-border-radius;
+  padding-bottom: 0 !important;  // Reduce bottom padding
+}
+
+// Make the title styling more specific and forceful
+h1.title, 
+.navbar-title,
+.title {
+  font-family: $navbar-font-family !important;
+  font-weight: 900;
+  font-size: 1.5rem !important;  // Make title bigger
+  color:#00A1E3;
+}
+
+// Additionally, target the specific quarto title class
+.quarto-title {
+  font-family: $navbar-font-family !important;
+}
+
+// change background color of selected tab
+.nav-link.active,
+.nav-tabs .nav-link.active,
+a.nav-link.active,
+.tab-content .nav-link.active {
+  background-color: #E2EDF2 !important;
+  color: black !important;
+}
+

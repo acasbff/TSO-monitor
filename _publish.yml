@@ -1,0 +1,4 @@
+- source: project
+  quarto-pub:
+    - id: 7cbd66f2-b685-40f1-8cb4-e53bdf3c9e73
+      url: 'https://acasbff.quarto.pub/tso-monitor'

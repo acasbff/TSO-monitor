@@ -7,9 +7,17 @@ website:
   
 format:
   dashboard-html:
-    theme: cosmo
+    theme:
+      - cosmo
+      - custom.scss
     orientation: columns
     embed-resources: true
-    css: styles.css
-    page-layout: full     # Add this line
-    margin-width: 0px    # Add this line
+    css: 
+      - styles.css
+      - https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;500;600;700;800&display=swap
+      - https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap
+    page-layout: custom # Changed from full to custom
+    grid:
+      body-width: 1400px # Controls the max width of the body
+      sidebar-width: 0px # Since we don't have a sidebar
+    mainfont: "Open Sans"
