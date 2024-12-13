@@ -28,7 +28,7 @@ $nav-tabs-link-hover-bg: lightorange;      // Hover background color
 
 // navbar/header section
 $navbar-bg: white;
-$navbar-border-width: 2px;
+$navbar-border-width: 3px;
 $navbar-border-color: #00A1E3;
 $navbar-border-style: solid;
 $navbar-padding-y: 1rem;          // Vertical padding
@@ -48,6 +48,8 @@ $navbar-border-radius: 0.5rem;    // Rounded corners
 // Make the title styling more specific and forceful
 h1.title, 
 .navbar-title,
+.quarto-title,
+.dashboard-title, 
 .title {
   font-family: $navbar-font-family !important;
   font-weight: 900;
@@ -55,10 +57,6 @@ h1.title,
   color:#00A1E3;
 }
 
-// Additionally, target the specific quarto title class
-.quarto-title {
-  font-family: $navbar-font-family !important;
-}
 
 // change background color of selected tab
 .nav-link.active,
@@ -69,3 +67,19 @@ a.nav-link.active,
   color: black !important;
 }
 
+/*-- scss:rules --*/
+/* Make sure no custom styles are interfering with table layout */
+.dashboard {
+  position: relative !important;
+  overflow-x: visible !important;
+}
+
+.card {
+  position: relative !important;
+  overflow: visible !important;
+}
+
+.container-fluid {
+  position: relative !important;
+  overflow: visible !important;
+}

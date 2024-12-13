@@ -4,7 +4,8 @@ editor_options:
   chunk_output_type: console
 ---
 ```{r setup, include=FALSE}
-### quarto publish quarto-pub --no-prompt --server ana.afonso.silva@bff.earth
+### quarto publish gh-pages --no-prompt --server https://acasbff.github.io/TSO-monitor/
+### or  git add . && git commit -m "Update message" && git push origin main
 library(googledrive)
 library(googlesheets4)
 library(tidyverse)
@@ -41,7 +42,7 @@ tryCatch({
   tab_colors <- read_sheet(
     sheet_url, 
     sheet = 'Color coding', 
-    range = "A1:E29" ## still needs to be added the info for 2 columns
+    range = "A1:E31" ## still needs to be added the info for 2 columns
   )
   
   # Read Governance sheet
@@ -50,6 +51,14 @@ tryCatch({
     sheet = 'Governance', 
     range = "A1:I33"
   )
+  
+    # Read footnotes to add under Governance sheet
+  tab1_foot <- read_sheet(
+    sheet_url, 
+    sheet = 'Governance', 
+    range = "A1:I35",
+    col_names = TRUE
+  ) %>% filter(Country %in% 'Footnote')
 
   # Read Politics sheet
   tab2_data0 <- read_sheet(
@@ -69,34 +78,32 @@ tryCatch({
 })
 
 tab1_data <- tab1_data0 %>%
-  group_by(Country) %>%
-  mutate(row_id = row_number()) %>%
-  ungroup() %>%
-  # Add unbundling colors
-  mutate(
-    unbundling_cols = case_when(
-      str_detect(`Unbundling model`, "Ownership unbundled") ~ 
-        filter(tab_colors, Header == "Unbundling model" & Category == "Ownership unbundled")$Color,
-      str_detect(`Unbundling model`, "ISO/ITO") ~ 
-        filter(tab_colors, Header == "Unbundling model" & Category == "ISO/ITO")$Color,
-      str_detect(`Unbundling model`, "No unbundling") ~ 
-        filter(tab_colors, Header == "Unbundling model" & Category == "No")$Color,
-      TRUE ~ "#FFFFFF"
-    ),
-    # Add net zero target colors
-    year = as.numeric(gsub("[^0-9]", "", `Government net zero climate target`)),
-    netZero_cols = case_when(
-      `Government net zero climate target` == "No target" ~ 
-        filter(tab_colors, Header == "Government net zero climate target" & Category == "No target")$Color,
-      !is.na(year) & year <= 2040 ~ 
-        filter(tab_colors, Header == "Government net zero climate target" & Category == "2040below")$Color,
-      !is.na(year) & year > 2040 ~ 
-        filter(tab_colors, Header == "Government net zero climate target" & Category == "2040higher")$Color,
-      TRUE ~ "#FFFFFF"
-    )
-  ) %>%
-  select(-year)
-
+    group_by(Country) %>%
+    mutate(row_id = row_number()) %>%
+    ungroup() %>%
+    # Create all needed columns in one mutate
+    mutate(
+        unbundling_clean = gsub("\\*+$", "", `Unbundling model`),
+        year = as.numeric(gsub("[^0-9]", "", `Government net zero climate target`)),
+        netZero_cols = case_when(
+            `Government net zero climate target` == "No target" ~ 
+                filter(tab_colors, Header == "Government net zero climate target" & Category == "No target")$Color,
+            !is.na(year) & year <= 2040 ~ 
+                filter(tab_colors, Header == "Government net zero climate target" & Category == "2040below")$Color,
+            !is.na(year) & year > 2040 ~ 
+                filter(tab_colors, Header == "Government net zero climate target" & Category == "2040higher")$Color,
+            TRUE ~ "#FFFFFF"
+        )
+    ) %>%
+    # then join the unbundling model color
+    left_join(
+        tab_colors %>% 
+            filter(Header == "Unbundling model") %>%
+            select(Category, "unbundling_cols" = Color),
+        by = c("unbundling_clean" = "Category")
+    ) %>%
+    # Clean up temporary columns
+    select(-year, -unbundling_clean)
 
 
 # Process tab2_data with color columns
@@ -119,31 +126,44 @@ tab2_data <- tab2_data0 %>%
       ),
     by = "Government aligned with 2035 benchmark"
   ) %>%
-  # Add colors for Position on capacity renumeration markets
+  # Add colors for Position on capacity remuneration markets
   left_join(
     polCols %>% 
-      filter(Header == "Position on capacity renumeration markets") %>%
+      filter(Header == "Position on capacity remuneration markets") %>%
       select(Category, Color) %>%
       rename(
-        `Position on capacity renumeration markets` = Category,
+        `Position on capacity remuneration markets` = Category,
         crm_cols = Color
       ),
-    by = "Position on capacity renumeration markets"
+    by = "Position on capacity remuneration markets"
   ) %>%
-  # Add colors for Clean Energy Ministerial - with flexible matching for asterisks
-  mutate(
-    cem_base = str_remove_all(`Clean Energy Ministerial`, "\\*+"),
-    cem_cols = case_when(
-      str_detect(cem_base, "MEMBER") ~ 
-        filter(polCols, Header == "Clean Energy Ministerial" & Category == "MEMBER")$Color,
-      str_detect(cem_base, "PARTICIPANT") ~ 
-        filter(polCols, Header == "Clean Energy Ministerial" & Category == "PARTICIPANT")$Color,
-      str_detect(cem_base, "NO") ~ 
-        filter(polCols, Header == "Clean Energy Ministerial" & Category == "NO")$Color,
-      TRUE ~ "#FFFFFF"
-    )
+    # Add colors for Clean Energy Ministerial
+    left_join(
+    polCols %>% 
+      filter(Header == "Clean Energy Ministerial") %>%
+      select(Category, Color) %>%
+      rename(
+        `Clean Energy Ministerial` = Category,
+        cem_cols = Color
+      ),
+    by = "Clean Energy Ministerial"
+  )  %>% 
+  left_join(
+    tab2_CRM %>% select(Country, TSO, "crm_detail" = "Detail on CRM position"),
+    by = c("Country", "TSO")
   ) %>%
-  select(-cem_base)
+  separate(
+    `Committee chair`,
+    into = c("Committee chair", "Chair_Details"),
+    sep = " \\| ",  # Adding escape character before |
+    fill = "right"  # This keeps rows without the separator
+  ) %>% 
+  separate(
+    `Board member or head of Assembly`,
+    into = c("Board member or head of Assembly", "Board_Details"),
+    sep = " \\| ",  # Adding escape character before |
+    fill = "right"  # This keeps rows without the separator
+  )
 
 # create YES/NO color mapping as a list instead of named vector
 yn_cols <- filter(tab_colors, Category %in% c('YES', 'NO')) %>% 
@@ -151,24 +171,32 @@ yn_cols <- filter(tab_colors, Category %in% c('YES', 'NO')) %>%
   distinct() %>% 
   deframe() %>%
   as.list()  # Convert to list to avoid the JSON named vector warning
+
+# CRM color mapping
+crm_cols <- filter(tab_colors, Header %in% 'Position on capacity remuneration markets') %>% 
+    select(Category, Color) %>% 
+    distinct() %>% 
+    deframe() %>%
+    as.list()
 ```
 
 ```{r, include = FALSE}
 ### customized functions
 
-color_tiles_custom <- function(data, 
+color_tiles_custom <- function(data,
                              color_ref = NULL,
-                             yes_no = FALSE, 
-                             height = "30px", 
+                             yes_no = FALSE,
+                             height = "30px",
                              box_shadow = FALSE,
-                             text_color = "black") {
-  
+                             text_color = "black",
+                             line_height = "1.2") {  # Added line_height parameter
+
   if (!is.logical(box_shadow)) {
     stop("`box_shadow` must be TRUE or FALSE")
   }
-  
+
   box_shadow <- if (box_shadow) "0 6px 6px -4px #888888" else NULL
-  
+
   cell <- function(value, index, name) {
     # Get color based on the type
     cell_color <- if (yes_no) {
@@ -184,7 +212,7 @@ color_tiles_custom <- function(data,
     } else {
       "#FFFFFF"  # Default color
     }
-    
+
     htmltools::div(
       value,
       style = list(
@@ -197,13 +225,300 @@ color_tiles_custom <- function(data,
         height = height,
         borderRadius = "6px",
         boxShadow = box_shadow,
-        transition = "background 1s ease"
+        transition = "background 1s ease",
+        lineHeight = line_height,    # Added line height control
+        padding = "8px",            # Added padding for better text spacing
+        textAlign = "center"        # Ensure text is centered
       )
     )
   }
-  
+
   cell
 }
+
+
+expand_custom <- function(data, 
+                          details_col, 
+                          color = NULL, 
+                          text_color = "black", 
+                          font_weight = "normal", 
+                          height = "40px", 
+                          box_shadow = TRUE, 
+                          column_id = NULL) {
+  
+  if (!is.null(color) && !is.list(color)) {
+    stop("`color` must be a named list of colors.")
+  }
+  
+  if (!details_col %in% names(data)) {
+    stop(paste("`details_col` must be a valid column in the data. Provided:", details_col))
+  }
+  
+  function(value, index) {
+    details_text <- data[[details_col]][index]
+    if (is.null(column_id)) {
+      stop("`column_id` must be provided to ensure unique class names.")
+    }
+    column_prefix <- column_id  # Use the provided column ID as the prefix
+    
+    cell_color <- if (!is.null(color) && !is.na(value)) {
+      color[[value]] %||% "transparent"
+    } else {
+      "transparent"
+    }
+    
+    shadow <- if (box_shadow) "0 6px 6px -4px #888888" else NULL
+    has_details <- !is.na(details_text) && nchar(trimws(details_text)) > 0
+    
+    # Main wrapper
+    htmltools::div(
+      style = list(
+        display = "flex",
+        flexDirection = "column",
+        width = "100%"
+      ),
+      
+      # Main cell container
+      htmltools::div(
+        style = list(
+          display = "grid",
+          gridTemplateColumns = "25px 2fr auto",  # Added left padding column
+          alignItems = "center",
+          minHeight = height,
+          backgroundColor = cell_color,
+          borderRadius = "6px",
+          boxShadow = shadow,
+          padding = "8px 12px",
+          color = text_color,
+          fontWeight = font_weight
+        ),
+        
+        # Empty div for left padding
+        htmltools::div(),
+        
+        # Text content
+        htmltools::div(
+          style = list(
+            display = "flex",
+            justifyContent = "center",
+            alignItems = "center",
+            width = "100%",
+            textAlign = "center"
+          ),
+          value
+        ),
+        
+        # Arrow area
+        if (has_details) {
+          htmltools::div(
+            style = list(
+              display = "flex",
+              alignItems = "center",
+              paddingLeft = "8px"
+            ),
+            htmltools::tags$span(
+              "▶",
+              class = sprintf("expand-arrow-%s-%s", column_prefix, index - 1),
+              style = list(
+                cursor = "pointer",
+                transform = "rotate(0deg)",
+                transition = "transform 0.3s ease",
+                color = "black",
+                display = "flex",
+                alignItems = "center"
+              ),
+              onclick = sprintf("toggleContent('%s', '%s')", column_prefix, index - 1)
+            )
+          )
+        } else {
+          # Empty div to maintain grid structure
+          htmltools::div(
+            style = list(
+              width = "24px"
+            )
+          )
+        }
+      ),
+      
+      # Expandable content
+      if (has_details) {
+        htmltools::div(
+          class = sprintf("details-content-%s-%s", column_prefix, index - 1),
+          style = list(
+            display = "none",
+            marginTop = "4px",
+            padding = "4px",
+            backgroundColor = "#f8f9fa",
+            borderRadius = "6px",
+            boxShadow = shadow,
+            textAlign = "center",
+            whiteSpace = "pre-wrap",
+            fontSize = "12px"
+          ),
+          details_text
+        )
+      }
+    )
+  }
+}
+
+
+
+# Popup cell function with info icon
+popup_custom <- function(data, 
+                         details_col, 
+                         header = NULL,
+                         color = NULL,
+                         text_color = "black",
+                         font_weight = "normal",
+                         height = "30px",
+                         box_shadow = TRUE,
+                         line_height = 1.2) {
+  
+  if (!is.logical(box_shadow)) {
+    stop("`box_shadow` must be TRUE or FALSE")
+  }
+  
+  shadow <- if (box_shadow) "0 6px 6px -4px #888888" else NULL
+  
+  function(value, index) {
+    use_colors <- !is.null(color) && length(color) > 0
+    background_color <- if (use_colors) {
+      if (!is.na(value) && value %in% names(color)) {
+        color[[value]]
+      } else {
+        "#FFFFFF"  # Default color if value not found in color mapping
+      }
+    } else {
+      "#FFFFFF"
+    }
+    
+    details_text <- data[[details_col]][index]
+    
+    if (!is.null(header)) {
+      current_row <- as.list(data[index, ])
+      header_text <- eval(parse(text = header), envir = current_row)
+    } else {
+      header_text <- sprintf("Details for Row %d", index)
+    }
+    
+    # Main div wrapping the content
+    htmltools::tags$div(
+      style = list(
+        padding = "8px 12px",
+        borderRadius = "6px",
+        display = "flex",
+        justifyContent = "space-between",  # Keep the text and icon separate
+        alignItems = "center",            # Vertically align both text and icon
+        height = height,
+        backgroundColor = background_color,
+        boxShadow = shadow,
+        transition = "background 1s ease",
+        lineHeight = as.character(line_height),
+        position = "relative"
+      ),
+      # Centered text
+      htmltools::tags$span(
+        style = list(
+          flexGrow = 1,                  # Allows text to occupy the remaining space
+          textAlign = "center",          # Centers the text within its space
+          color = text_color,
+          fontWeight = font_weight
+        ),
+        value
+      ),
+      # "i" icon positioned to the right
+      if (!is.na(details_text) && nchar(trimws(details_text)) > 0) {
+        htmltools::tags$span(
+          style = sprintf("cursor: pointer; color: %s;", text_color),
+          onclick = sprintf(
+            "showCustomModal('%s', `%s`)", 
+            header_text,
+            details_text
+          ),
+          htmltools::tags$i(
+            style = sprintf("
+              font-style: normal; 
+              font-weight: bold; 
+              border: 2px solid currentColor; 
+              border-radius: 50%%; 
+              width: 18px; 
+              height: 18px; 
+              display: inline-flex; 
+              align-items: center; 
+              justify-content: center; 
+              font-size: 12px; 
+              color: %s;", 
+                            text_color),
+            "i"
+          )
+        )
+      }
+    )
+  }
+}
+
+
+
+# Updated JavaScript
+custom_js <- HTML("
+window.toggleContent = function(columnPrefix, index) {
+  console.log(`toggleContent called with columnPrefix: ${columnPrefix}, index: ${index}`);
+  const content = document.querySelector(`.details-content-${columnPrefix}-${index}`);
+  const arrow = document.querySelector(`.expand-arrow-${columnPrefix}-${index}`);
+  if (content && arrow) {
+    const isVisible = content.style.display === 'block';
+    content.style.display = isVisible ? 'none' : 'block';
+    arrow.style.transform = isVisible ? 'rotate(0deg)' : 'rotate(90deg)';
+  } else {
+    console.error(`Elements not found for columnPrefix: ${columnPrefix}, index: ${index}`);
+  }
+};
+
+window.showCustomModal = function(header, details) {
+    if (typeof Swal !== 'undefined') {
+      // Count the number of words in the details text
+      const wordCount = details.split(' ').length;
+      // Determine alignment: left-align for fewer words, justify for more words
+      const textAlign = wordCount > 2 ? 'justify' : 'left';
+
+      Swal.fire({
+        title: header,
+        html: `<div style='white-space: pre-line; text-align: ${textAlign};'>${details}</div>`,
+        showCloseButton: true,
+        showConfirmButton: true,
+        confirmButtonText: 'Close',
+        confirmButtonColor: '#00A1E3',
+        customClass: {
+          container: 'custom-swal-container',
+          popup: 'custom-swal-popup',
+          header: 'custom-swal-header',
+          content: 'custom-swal-content'
+        }
+      });
+    } else {
+      console.error('SweetAlert2 (Swal) is not loaded.');
+    }
+  };
+")
+
+# CSS styling
+custom_css <- HTML("
+<style>
+.custom-swal-popup {
+  font-family: 'Open Sans', sans-serif;
+}
+.custom-swal-header {
+  font-weight: 600;
+}
+.custom-swal-content {
+  text-align: left;
+}
+.swal2-icon {
+  display: none !important;
+}
+</style>
+")
 ```
 
 
@@ -211,7 +526,13 @@ color_tiles_custom <- function(data,
 
 ```{r}
 #| padding: 0
-reactable(
+div(
+    # Sorting hint above table, right-aligned
+  div(
+    "Hold Shift to sort by multiple columns",
+    style = "color: #666; font-size: 0.875rem; margin-bottom: 0.5rem; text-align: right;"
+  ),
+  reactable(
   tab1_data %>% select(-`Ownership (detailed)`),
   defaultColDef = colDef(
     #width = 260,
@@ -227,79 +548,78 @@ reactable(
   ),
   columns = list(
     "Country" = colDef(
-      width = 150,
-      sticky = "left",
-      header = "Country",
-      align = "left",
-      cell = function(value, index) {
-        current_country <- tab1_data$Country[index]  # Changed from tab2_data
-        if (index > 1) {
-          previous_country <- tab1_data$Country[index - 1]  # Changed from tab2_data
-          if (current_country == previous_country) {
-            return("")  
-          }
-        }
-        flag_path <- file.path("images/flags", paste0(current_country, ".svg"))
-        encoded_image <- knitr::image_uri(flag_path)
-        
-        div(
-          style = list(
-            display = "flex",
-            alignItems = "center",
-            gap = "8px",
-            width = "100%",
-            justifyContent = "flex-start",
-            borderTop = if (index > 1 && current_country == previous_country) "none" else NULL,
-            paddingTop = if (index > 1 && current_country == previous_country) 0 else NULL,
-            paddingBottom = if (index > 1 && current_country == previous_country) 0 else NULL
-          ),
-          tags$img(
-            src = encoded_image,
-            alt = value,
-            title = current_country,
-            style = list(
-              width = "32px",
-              height = "24px",
-              flexShrink = "0"
-            )
-          ),
-          span(
-            style = list(
-              display = "inline-block"
-            ),
-            current_country
-          )
+  width = 190,
+  sticky = "left",
+  header = "Country",
+  align = "center",
+  style = list(fontWeight = 700, position = "sticky", left = 0, zIndex = 1),
+  headerStyle = list(position = "sticky", left = 0, zIndex = 1),
+  cell = function(value, index) {
+    current_country <- tab1_data$Country[index]
+    flag_path <- file.path("images/flags", paste0(current_country, ".svg"))
+    encoded_image <- knitr::image_uri(flag_path)
+    
+    div(
+      style = list(
+        display = "flex",
+        alignItems = "center",
+        gap = "8px",
+        width = "100%",
+        justifyContent = "flex-start",
+        fontWeight = 700
+      ),
+      tags$img(
+        src = encoded_image,
+        alt = value,
+        title = current_country,
+        style = list(
+          width = "32px",
+          height = "24px",
+          flexShrink = "0"
         )
-      },
-      style = function(value, index) {
-        current_country <- tab1_data$Country[index]  # Changed from tab2_data
-        if (index > 1) {
-          previous_country <- tab1_data$Country[index - 1]  # Changed from tab2_data
-          if (current_country == previous_country) {
-            list(
-              borderTop = "none", 
-              paddingTop = 0, 
-              paddingBottom = 0,
-              display = "flex",
-              alignItems = "center",
-              height = "100%"
-            )
-          }
-        }
-      }
-    ),
-    TSO = colDef(
-      width = 135,
-      cell = function(value, index) {
-        url <- tab1_data$TSO_URL[index]
-        if (!is.na(url)) {
-          htmltools::tags$a(href = url, target = "_blank", value)
-        } else {
+      ),
+      span(
+        style = list(
+          display = "inline-block",
+                      fontWeight = 700  # Also add bold to the span element
+        ),
+        current_country
+      )
+    )
+  }
+),
+TSO = colDef(
+  width = 135,
+  sticky = "left",
+  align = "center",
+  # Add more specific styling
+  style = list(fontWeight = 700),
+  cell = function(value, index) {
+    url <- tab1_data$TSO_URL[index]
+    div(
+      style = list(
+        paddingLeft = "0px",
+        fontWeight = 700
+      ),
+      if (!is.na(url)) {
+        # Make the link styling more specific
+        htmltools::tags$a(
+          href = url, 
+          target = "_blank", 
+          style = "font-weight: 700 !important;", # Added !important and changed to inline style
           value
-        }
+        )
+      } else {
+        # For non-link values
+        div(
+          style = list(fontWeight = 700),
+          value
+        )
       }
-    ),
-    "State ownership share" = colDef(
+    )
+  }
+),
+      "State ownership share" = colDef(
       width = 200,  # Set fixed width for column to ensure consistent layout
       align = "right",  # aligning the whole cell content to the right
       style = list(paddingRight = "0px", paddingTop = "12px"),  # no padding on the right side
@@ -324,13 +644,13 @@ reactable(
         div(style = list(
           position = "relative",
           height = "40px",
-          marginTop = "-28px"  # Adjust vertical alignment of entire cell content
+          marginTop = "-29px"  # Adjust vertical alignment of entire cell content
         ),
         
         # Container for bar and percentage - handles positioning
         div(style = list(
           position = "absolute",
-          left = "30px", #move bar container to the right with increasing value
+          left = "29px", #move bar container to the right with increasing value
           top = "50%",
           transform = "translateY(-50%)",  # Center vertically
           display = "flex",
@@ -360,26 +680,35 @@ reactable(
       }
     ),
 "Unbundling model" = colDef(
-  cell = color_tiles_custom(tab1_data, color_ref = "unbundling_cols", height = "40px", box_shadow = TRUE),
-  width = 220),
-"Government net zero climate target" = colDef(
-  cell = color_tiles_custom(
-    tab1_data, 
-    color_ref = "netZero_cols", 
-    height = "40px",
-    box_shadow = TRUE
-  ), 
-width = 170),
+  cell = color_tiles_custom(tab1_data, color_ref = "unbundling_cols", height = "50px", line_height = 1.1,
+                            box_shadow = TRUE),
+  width = 220
+#   footer = htmltools::div(
+#     htmltools::div(tab1_foot$`Unbundling model`[1]),
+#     htmltools::div(tab1_foot$`Unbundling model`[2])
+#   ),
+#   footerStyle = list(
+#     fontSize = "0.75rem", 
+#     textAlign = "left"
+#   )
+ ),
+    "Government net zero climate target" = colDef(
+      cell = color_tiles_custom(
+        tab1_data, 
+        color_ref = "netZero_cols", 
+        height = "50px",
+        box_shadow = TRUE
+      ), 
+      width = 170),
     "Public reference to climate responsibility - regulator" = colDef(
       width = 350),
     "Public reference to climate responsibility - TSO" = colDef(
       width = 270),
-
-TSO_URL = colDef(show = FALSE),
-row_id = colDef(show = FALSE),
-unbundling_cols = colDef(show = FALSE),
-netZero_cols = colDef(show = FALSE)
-  ),
+    
+    TSO_URL = colDef(show = FALSE),
+    row_id = colDef(show = FALSE),
+    unbundling_cols = colDef(show = FALSE),
+    netZero_cols = colDef(show = FALSE)),
   onClick = "expand",
   theme = reactableTheme(
     borderColor = "#dfe2e5",
@@ -399,15 +728,23 @@ netZero_cols = colDef(show = FALSE)
     )
   ),
   pagination = FALSE
+),
+  
+  # Footnotes container - starts from Unbundling model column
+  div(
+    style = "font-size: 0.75rem; color: #666; margin-top: 0.5rem;",  
+    div(tab1_foot$`Unbundling model`[1]),
+    div(tab1_foot$`Unbundling model`[2])
+  )
 )
 ```
+
 
 # Politics {data-orientation=rows}
 
 ```{r}
 #| padding: 0
-reactable(
-  tab2_data,
+reactPolitics <- reactable(tab2_data,
     defaultColDef = colDef(
    # width = 260,
     align = "center",  # Horizontal centering
@@ -421,16 +758,16 @@ reactable(
     ),
   ),
   columnGroups = list(
-  colGroup(
-    name = " ",
-    sticky = "left",
-    columns = c("Country", "TSO"),
-    headerStyle = list(
-      width = "275px"  ## Combined width of Country (140) + TSO (135)
-    )
-  ),
+  # colGroup(
+  #   name = " ",
+  #   sticky = "left",
+  #   columns = c("Country", "TSO"),
+  #   headerStyle = list(
+  #     width = "325px"  ## Combined width of Country (190) + TSO (135)
+  #   )
+  # ),
         colGroup(
-      name = "ENTSO-E",
+      name = "Positions held in ENTSO-E",
       columns = c("Board member or head of Assembly",	"Committee chair"),
       headerStyle = list(
         background = "#00A1E3",
@@ -441,40 +778,41 @@ reactable(
     colGroup(
       name = "Global progressive TSO coalition member",
       columns = c("Green Grids Initiative (GGI)", 
+                  "Global Power System Transformation Consortium (G-PST)",
+                  "Breakthrough Agenda Power (P4 infrastructure, knowledge, capacity & skills)",
                  "International Smart Grid Action Network (ISGAN)", 
-                 "Global Power System Transformation Consortium (G-PST)"),
+                 "Regulatory Energy Transition Accelerator (RETA)",
+                 "Clean Energy Ministerial"
+                 ),
       headerStyle = list(
         background = "#00A1E3",
         color = "white",
         borderBottom = "1px solid #dfe2e5"
       )
-    ),
-        colGroup(
-      name = "governmentrelated",
-      columns = c("Regulatory Energy Transition Accelerator (RETA)",
-      "Breakthrough Agenda Power (P4 infrastructure, knowledge, capacity & skills)",
-      "Clean Energy Ministerial"),
-      headerStyle = list(
-        background = "#00A1E3",
-        color = "white",
-        borderBottom = "1px solid #dfe2e5"
-      )
-    )
+    ) #,
+    #     colGroup(
+    #   name = "governmentrelated",
+    #   columns = c("Regulatory Energy Transition Accelerator (RETA)",
+    #   "Breakthrough Agenda Power (P4 infrastructure, knowledge, capacity & skills)",
+    #   "Clean Energy Ministerial"),
+    #   headerStyle = list(
+    #     background = "#00A1E3",
+    #     color = "white",
+    #     borderBottom = "1px solid #dfe2e5"
+    #   )
+    # )
   ),
   columns = list(
 "Country" = colDef(
-  width = 150,
+  width = 190,
   sticky = "left",
   header = "Country",
-  align = "left",
+  align = "center",
+  ,
+  style = list(
+    fontWeight = 700),
   cell = function(value, index) {
     current_country <- tab2_data$Country[index]
-    if (index > 1) {
-      previous_country <- tab2_data$Country[index - 1]
-      if (current_country == previous_country) {
-        return("")  # Return empty for merged cells
-      }
-    }
     flag_path <- file.path("images/flags", paste0(current_country, ".svg"))
     encoded_image <- knitr::image_uri(flag_path)
     
@@ -485,9 +823,7 @@ reactable(
         gap = "8px",
         width = "100%",
         justifyContent = "flex-start",
-        borderTop = if (index > 1 && current_country == previous_country) "none" else NULL,
-        paddingTop = if (index > 1 && current_country == previous_country) 0 else NULL,
-        paddingBottom = if (index > 1 && current_country == previous_country) 0 else NULL
+        fontWeight = 700
       ),
       tags$img(
         src = encoded_image,
@@ -501,49 +837,46 @@ reactable(
       ),
       span(
         style = list(
-          display = "inline-block"
+          display = "inline-block",
+          fontWeight = 700
         ),
         current_country
       )
     )
-  },
-  # Add back the style function for merging
-  style = function(value, index) {
-    current_country <- tab2_data$Country[index]
-    if (index > 1) {
-      previous_country <- tab2_data$Country[index - 1]
-      if (current_country == previous_country) {
-        list(
-          borderTop = "none", 
-          paddingTop = 0, 
-          paddingBottom = 0,
-          display = "flex",
-          alignItems = "center",
-          height = "100%"
-        )
-      }
-    }
   }
 ),
-"TSO" = colDef(
+TSO = colDef(
   width = 135,
-  align = "center",  
-  sticky = "left", # Make it sticky
+  sticky = "left",
+  align = "center",
+  # Add more specific styling
+  style = list(fontWeight = 700),
   cell = function(value, index) {
-    url <- tab2_data$TSO_URL[index]  
+    url <- tab2_data$TSO_URL[index]
     div(
       style = list(
-        paddingLeft = "12px" # Add padding for alignment with Country column
+        paddingLeft = "0px",
+        fontWeight = 700
       ),
       if (!is.na(url)) {
-        htmltools::tags$a(href = url, target = "_blank", value)
+        # Make the link styling more specific
+        htmltools::tags$a(
+          href = url, 
+          target = "_blank", 
+          style = "font-weight: 700 !important;", # Added !important and changed to inline style
+          value
+        )
       } else {
-        value
+        # For non-link values
+        div(
+          style = list(fontWeight = 700),
+          value
+        )
       }
     )
   }
 ),
-    "Current share of renewables (%) 2022 Ember" = colDef(
+    "Share of renewables (2023)" = colDef(
   width = 200,  # Set fixed width for column
   align = "right",  # aligning the whole cell content to the right
   style = list(paddingRight = "0px"),  # no padding on the right side
@@ -591,47 +924,86 @@ reactable(
     ))
   }
 ),
-"Board member or head of Assembly" = colDef( width = 150),
-"Committee chair" = colDef( width = 150),
+   "Board member or head of Assembly" = colDef(
+      cell = expand_custom(
+        data = tab2_data,
+        details_col = "Board_Details",
+        box_shadow = FALSE,
+        text_color = "black",
+        column_id = "board"  # Unique column ID
+      ),
+      html = TRUE, width = 130
+    ),
+    Board_Details = colDef(show = FALSE),
+    "Committee chair" = colDef(
+      cell = expand_custom(
+        data = tab2_data,
+        details_col = "Chair_Details",
+        box_shadow = FALSE,
+        text_color = "black",
+        column_id = "committee"  # Unique column ID
+      ),
+      html = TRUE, width = 130
+    ),
+    Chair_Details = colDef(show = FALSE),
 
 "Government aligned with 2035 benchmark" = colDef(
   cell = color_tiles_custom(tab2_data, color_ref = "benchmark_cols", height = "40px", box_shadow = TRUE),
   width = 250, 
 ),
-"Position on capacity renumeration markets" = colDef(
-  cell = color_tiles_custom(tab2_data, color_ref = "crm_cols", height = "40px", box_shadow = TRUE),
-  width = 150,
-),
+
+    "Position on capacity remuneration markets" = colDef(
+      cell = popup_custom(
+        data = tab2_data,
+        details_col = "crm_detail",
+        header = "paste(TSO, ' | Position on CRM: ', `Position on capacity remuneration markets`)",
+        color = crm_cols,
+        text_color = "black",
+        font_weight = "400",
+        height = "40px",
+        box_shadow = TRUE,
+        line_height = 1.2
+      ),
+      html = TRUE,
+      width = 170
+    ),
+
 "Clean Energy Ministerial" = colDef(
   cell = color_tiles_custom(tab2_data, color_ref = "cem_cols", height = "40px", box_shadow = TRUE),
   width = 150,
-    headerStyle = list(fontSize = "12px")  # Adjust size as needed
+    headerStyle = list(fontSize = "11px")  # Adjust size as needed
 ),
 "Green Grids Initiative (GGI)" = colDef(
   cell = color_tiles_custom(tab2_data, yes_no = TRUE, height = "40px", box_shadow = TRUE),
-  width = 120,
-    headerStyle = list(fontSize = "12px")  # Adjust size as needed
+  width = 130,
+    headerStyle = list(fontSize = "11px")  # Adjust size as needed
 ),
 "International Smart Grid Action Network (ISGAN)" = colDef(
   cell = color_tiles_custom(tab2_data, yes_no = TRUE, height = "40px", box_shadow = TRUE),
-  width = 120,  headerStyle = list(fontSize = "12px")  # Adjust size as needed
+  width = 130,  headerStyle = list(fontSize = "11px")  # Adjust size as needed
 ),
 "Global Power System Transformation Consortium (G-PST)" = colDef(
+   header = htmltools::div(
+    "Global Power System Transformation Consortium",
+    htmltools::tags$br(),
+    "(G-PST)"
+  ),
   cell = color_tiles_custom(tab2_data, yes_no = TRUE, height = "40px", box_shadow = TRUE),
-  width = 120,  headerStyle = list(fontSize = "12px")  # Adjust size as needed
+  width = 130,  headerStyle = list(fontSize = "11px")  # Adjust size as needed
 ),
 "Regulatory Energy Transition Accelerator (RETA)" = colDef(
   cell = color_tiles_custom(tab2_data, yes_no = TRUE, height = "40px", box_shadow = TRUE),
-  width = 120,  headerStyle = list(fontSize = "12px")  # Adjust size as needed
+  width = 130,  headerStyle = list(fontSize = "11px")  # Adjust size as needed
 ),
 "Breakthrough Agenda Power (P4 infrastructure, knowledge, capacity & skills)" = colDef(
   cell = color_tiles_custom(tab2_data, yes_no = TRUE, height = "40px", box_shadow = TRUE),
-  width = 120,  headerStyle = list(fontSize = "12px")  # Adjust size as needed
+  width = 130,  headerStyle = list(fontSize = "11px")  # Adjust size as needed
 ),
     "TSO_URL" = colDef(show = FALSE),
 "benchmark_cols" = colDef(show = FALSE),
 "crm_cols" = colDef(show = FALSE),
 "cem_cols" = colDef(show = FALSE),
+"crm_detail" = colDef(show = FALSE),
     "row_id" = colDef(show = FALSE)
   ),
 theme = reactableTheme(
@@ -652,4 +1024,35 @@ theme = reactableTheme(
 ),
   pagination = FALSE
 )
+
+# Wrapper for the table with sorting hint and custom functionality
+div_wrapper <- div(
+  # Sorting hint above the table
+  div(
+    "Hold Shift to sort by multiple columns",
+    style = "color: #666; font-size: 0.875rem; margin-bottom: 0.5rem; text-align: right;"
+  ),
+  # Render the reactPolitics table
+  reactPolitics
+)
+
+browsable(
+  tagList(
+    # Load SweetAlert2
+    tags$script(src = "https://cdn.jsdelivr.net/npm/sweetalert2@11"),
+    # Include the reusable JavaScript
+    tags$script(custom_js),
+    # Include the sorting hint and the table
+    div(
+      # Sorting hint above the table
+      div(
+        "Hold Shift to sort by multiple columns",
+        style = "color: #666; font-size: 0.875rem; margin-bottom: 0.5rem; text-align: right;"
+      ),
+      # Render the reactPolitics table
+      reactPolitics
+    )
+  )
+)
+
 ```
